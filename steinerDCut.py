@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt # For drawing
 import random # For random number generation
 import math # For square roots
 from gurobipy import *
+
 ###################################################################
 # CREATING OUR STEINER TREE PROBLEM
 ###################################################################
@@ -45,27 +46,27 @@ nx.draw(G, pos, nodelist=terminals, node_size=800, edgelist=None, node_shape='s'
 root = 0
 arcs = edges + [ (v,u) for (u,v) in edges ]
 
-model = Model("Directed Cut")
-model.params.lazyConstraints = 1
-model.modelSense = GRB.MINIMIZE
-model.params.cuts = 3
-model.params.timeLimit = 120
+DCmodel = Model("Directed Cut")
+DCmodel.params.lazyConstraints = 1
+DCmodel.modelSense = GRB.MINIMIZE
+DCmodel.params.cuts = 3
+DCmodel.params.timeLimit = 120
 
 # We first create the edge variables.
 x = {}
 for u,v in edges:
-  x[u,v] = model.addVar(name='x#'+str(u)+'#'+str(v), vtype=GRB.BINARY, obj=edgeCosts[u,v])
+  x[u,v] = DCmodel.addVar(name='x#'+str(u)+'#'+str(v), vtype=GRB.BINARY, obj=edgeCosts[u,v])
 
 # We now create the associated digraph variables
 y={}
 for u,v in arcs:
-  y[u,v]=model.addVar(name=f"y{u,v}",vtype=GRB.BINARY)
+  y[u,v]=DCmodel.addVar(name=f"y{u,v}",vtype=GRB.BINARY)
 for u,v in edges:
-  model.addConstr(y[u,v]+y[v,u]<= x[u,v])
+  DCmodel.addConstr(y[u,v]+y[v,u]<= x[u,v])
 #############################################################################à
 # SEPARATIION PROBLEM
 #############################################################################à
-def callback(model, where):
+def callback(DCmodel, where):
 
   # This is required to access the corresponding variables from outside the function.
   global x
@@ -79,11 +80,11 @@ def callback(model, where):
 
   # Case 1: Called for every integer solution - we need to check whether it is feasible.
   if where == GRB.callback.MIPSOL:
-    solution = { edge: value for edge,value in zip(x.keys(), model.cbGetSolution(list(x.values()))) }
+    solution = { edge: value for edge,value in zip(x.keys(), DCmodel.cbGetSolution(list(x.values()))) }
 
   # Case 2: Called for fractional solutions - we can add violated inequalities.
-  elif where == GRB.callback.MIPNODE and model.cbGet(GRB.Callback.MIPNODE_STATUS) == GRB.OPTIMAL:
-    solution = { edge: value for edge,value in zip(x.keys(), model.cbGetNodeRel(list(x.values()))) }
+  elif where == GRB.callback.MIPNODE and DCmodel.cbGet(GRB.Callback.MIPNODE_STATUS) == GRB.OPTIMAL:
+    solution = { edge: value for edge,value in zip(x.keys(), DCmodel.cbGetNodeRel(list(x.values()))) }
 
   # Otherwise, state that we don't have a solution.
   else:
@@ -109,26 +110,36 @@ def callback(model, where):
 
         # If the cut value is (clearly) less than 1, we add a violated Steiner cut constaint.
         if value < 0.99:
-          model.cbLazy(quicksum( y[u,v] for u,v in arcs if (u in rootPart and v in kPart) or (u in kPart and v in rootPart) ) >= 1)
+          DCmodel.cbLazy(quicksum( y[u,v] for u,v in arcs if (u in rootPart and v in kPart) or (u in kPart and v in rootPart) ) >= 1)
 
-model.optimize(callback)
-selected_edges = [ (u,v) for (u,v) in edges if x[u,v].x > 0.5 ]
-selected_set = set(selected_edges)
+DCmodel.optimize(callback)
+####################################################
+#   SOLUTION REPRESENTATION
+####################################################
+show=True
+if DCmodel.Status == GRB.OPTIMAL and show==True:
+    selected_edges = [ (u,v) for (u,v) in edges if x[u,v].X > 0.5 ]
+    selected_set = set(selected_edges)
 
-edge_colors = []
-edge_widths = []
-for u, v in G.edges():
-    if (u, v) in selected_set or (v, u) in selected_set:
-        edge_colors.append("red")
-        edge_widths.append(3)
-    else:
-        edge_colors.append("lightgray")
-        edge_widths.append(1)
+    edge_colors = []
+    edge_widths = []
+    for u, v in G.edges():
+        if (u, v) in selected_set or (v, u) in selected_set:
+            edge_colors.append("red")
+            edge_widths.append(3)
+        else:
+            edge_colors.append("lightgray")
+            edge_widths.append(1)
 
-plt.figure(figsize=(width/5, height/5))
-nx.draw(G, pos, edgelist=G.edges(), edge_color=edge_colors, width=edge_widths,node_size=400, node_color="skyblue", node_shape="o")
-nx.draw(G, pos, nodelist=terminals, node_size=800, node_shape="s", node_color="green")
-nx.draw_networkx_labels(G, pos, font_size=8)
-plt.title("Steiner Tree: Selected edges highlighted in red")
-plt.axis("off")
-plt.show()
+    plt.figure(figsize=(width/5, height/5))
+    nx.draw(G, pos, edgelist=G.edges(), edge_color=edge_colors, width=edge_widths,node_size=400, node_color="skyblue", node_shape="o")
+    nx.draw(G, pos, nodelist=terminals, node_size=800, node_shape="s", node_color="green")
+    nx.draw_networkx_labels(G, pos, font_size=8)
+    plt.title("Steiner Tree: Selected edges highlighted in red")
+    plt.axis("off")
+    plt.show()
+elif  not DCmodel.Status == GRB.OPTIMAL :
+   print("Problem is Infeasible")
+else:
+   None
+
