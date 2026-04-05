@@ -5,6 +5,7 @@ build/
 dist/
 wheels/
 test_instances/
+test_outputs/
 *.egg-info
 
 # Virtual environments
