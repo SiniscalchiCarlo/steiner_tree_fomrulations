@@ -134,12 +134,12 @@ def DC_solve(
                 if k != root:
                     stats["separation_calls"] += 1
                     sep_start = time.perf_counter()
-                    (value,(kPart,rootPart)) = nx.algorithms.flow.minimum_cut(digraph, root, k)
+                    (value,(rootPart,kPart)) = nx.algorithms.flow.minimum_cut(digraph, root, k)
                     stats["separation_time_sec"] += time.perf_counter() - sep_start
                     #print(value, kPart, rootPart)
                     if value < 1-1e-5:
                         # If the cut value is (clearly) less than 1, we add a violated Steiner cut constaint. 
-                        # We only keep the outgoins arcs that has tail in r and head in k 
+                        # We keep outgoing arcs from the root side of the cut to the terminal side.
                         DCmodel.cbLazy(quicksum( y[u,v] for u,v in arcs if (u in rootPart and v in kPart)) >= 1)
                         stats["lazy_cuts_added"] += 1
 
