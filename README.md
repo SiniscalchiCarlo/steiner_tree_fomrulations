@@ -25,8 +25,8 @@ python run_benchmarks.py --time-limit 30 --threads 1 --cuts 0 --compute-static-l
 
 Useful options:
 
-- `--limit N` to benchmark only the first `N` instances
-- `--formulations uc,uf,dc,df` to select formulations
+- `--limit N` or `--first-n-instances N` to benchmark only the first `N` instances
+- `--formulations uc,uf,dc` to select formulations
 - `--continue-on-error` to keep going after a failed solve
 
 ### Analyze results

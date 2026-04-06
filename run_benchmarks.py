@@ -76,12 +76,19 @@ def parse_args():
     parser.add_argument("--threads", type=int, default=1)
     parser.add_argument("--cuts", type=int, default=None)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument(
+        "--limit",
+        "--first-n-instances",
+        dest="limit",
+        type=int,
+        default=None,
+        help="Run only the first N instance files after sorting.",
+    )
     parser.add_argument(
         "--formulations",
         type=str,
-        default="uc,uf,dc,df",
-        help="Comma-separated list from: uc, uf, dc, df",
+        default="uc,uf,dc",
+        help="Comma-separated list from: uc, uf, dc",
     )
     parser.add_argument(
         "--compute-static-lp-relaxation",
@@ -119,22 +126,27 @@ def benchmark_one(
     lp_relaxation_time_sec = None
 
     if args.compute_static_lp_relaxation:
-        lp_start = time.perf_counter()
-        lp_model = solve_lp_relaxation(
-            formulation_key,
-            nodes,
-            edges,
-            terminals,
-            edge_costs,
-            time_limit=args.time_limit,
-            threads=args.threads,
-            cuts=args.cuts,
-            seed=args.seed,
-        )
-        lp_relaxation_time_sec = time.perf_counter() - lp_start
-        lp_relaxation_status = lp_model.Status
-        if lp_model.SolCount > 0:
-            lp_relaxation_obj = lp_model.ObjVal
+        try:
+            lp_start = time.perf_counter()
+            lp_model = solve_lp_relaxation(
+                formulation_key,
+                nodes,
+                edges,
+                terminals,
+                edge_costs,
+                time_limit=args.time_limit,
+                threads=args.threads,
+                cuts=args.cuts,
+                seed=args.seed,
+            )
+            lp_relaxation_time_sec = time.perf_counter() - lp_start
+            lp_relaxation_status = lp_model.Status
+            if lp_model.SolCount > 0:
+                lp_relaxation_obj = lp_model.ObjVal
+        except NotImplementedError:
+            lp_relaxation_obj = None
+            lp_relaxation_status = None
+            lp_relaxation_time_sec = None
 
     solve_start = time.perf_counter()
     model = solve_formulation(

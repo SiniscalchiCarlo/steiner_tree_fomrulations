@@ -7,5 +7,6 @@ requires-python = ">=3.12"
 dependencies = [
     "gurobipy>=13.0.1",
     "matplotlib>=3.10.8",
+    "networkx>=3.6.1",
     "pandas>=3.0.2",
 ]
