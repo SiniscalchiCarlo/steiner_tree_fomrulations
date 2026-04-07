@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Steiner Formulation Analysis</title>
+  <style>
+    :root {
+      --bg: #f7f4ee;
+      --paper: #fffdf9;
+      --ink: #1e1f1c;
+      --muted: #5d6258;
+      --line: #d8d0c2;
+      --accent: #1f6f5f;
+      --accent-2: #b44d1e;
+      --soft: #eef5f2;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, #f2ead8 0, transparent 34rem),
+        radial-gradient(circle at bottom right, #e6efe9 0, transparent 30rem),
+        var(--bg);
+      line-height: 1.55;
+    }
+
+    .page {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 40px 20px 72px;
+    }
+
+    .hero, section {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.04);
+      margin-bottom: 20px;
+    }
+
+    h1, h2, h3 {
+      margin: 0 0 12px;
+      line-height: 1.15;
+      font-weight: 700;
+    }
+
+    h1 { font-size: 2.4rem; }
+    h2 { font-size: 1.45rem; color: var(--accent); }
+    h3 { font-size: 1.05rem; }
+
+    p, li { font-size: 1.03rem; }
+    .muted { color: var(--muted); }
+    .lead {
+      font-size: 1.12rem;
+      max-width: 58rem;
+    }
+
+    .callout {
+      background: var(--soft);
+      border-left: 4px solid var(--accent);
+      padding: 14px 16px;
+      border-radius: 10px;
+      margin: 16px 0;
+    }
+
+    .warning {
+      background: #fff1e8;
+      border-left-color: var(--accent-2);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      background: #fffefa;
+    }
+
+    .big {
+      font-size: 1.9rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 4px 0 6px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 14px;
+      font-size: 0.98rem;
+      background: #fff;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f3eee4;
+    }
+
+    .plot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    figure {
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    figure img {
+      width: 100%;
+      display: block;
+      background: #fff;
+    }
+
+    figcaption {
+      padding: 10px 12px 14px;
+      font-size: 0.94rem;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+    }
+
+    ul {
+      margin-top: 10px;
+      padding-left: 20px;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      background: #f3eee4;
+      padding: 1px 5px;
+      border-radius: 6px;
+      font-size: 0.94em;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <h1>Analysis of the Steiner Formulation Benchmarks</h1>
+      <p class="lead">
+        Short answer: you have enough information to answer the exercise well for the three formulations that were actually implemented and benchmarked, namely <code>undirected cut</code>, <code>undirected flow</code>, and <code>directed cut</code>. You do not yet have enough to fully answer the exercise exactly as written, because it asks for <strong>four</strong> formulations and the current solver registry contains only three.
+      </p>
+      <div class="callout warning">
+        <strong>Main caveat.</strong> The current repository does not implement a fourth formulation in the benchmark registry. Also, the 120-second run used the default Gurobi cut settings for <code>undirected cut</code> and <code>undirected flow</code>, while <code>directed cut</code> was run with <code>Cuts = 0</code> when <code>--cuts</code> was not provided. This means the comparison is informative, but not perfectly symmetric.
+      </div>
+      <p class="muted">
+        Main dataset used below: run <code>20260406_113835</code>, 100 instances, 1 thread, 120-second limit.
+      </p>
+    </section>
+
+    <section>
+      <h2>Answer</h2>
+      <p>
+        Based on the available results, the practical ranking of the formulations is clear. The <strong>directed cut</strong> formulation is the strongest by a wide margin. It solves all 100 benchmark instances within 120 seconds, while <strong>undirected flow</strong> solves 39 and <strong>undirected cut</strong> solves 22. This ranking is consistent across the main metrics requested by the exercise.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Formulation</th>
+            <th>Optimal runs</th>
+            <th>Time-limit runs</th>
+            <th>Median runtime (s)</th>
+            <th>Median root LP gap</th>
+            <th>Median B&amp;B nodes</th>
+            <th>Median separation time (s)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>directed cut</td>
+            <td>100</td>
+            <td>0</td>
+            <td>4.05</td>
+            <td>0.0938</td>
+            <td>48.0</td>
+            <td>0.725</td>
+          </tr>
+          <tr>
+            <td>undirected flow</td>
+            <td>39</td>
+            <td>61</td>
+            <td>120.10</td>
+            <td>0.1472</td>
+            <td>770.0</td>
+            <td>0.0</td>
+          </tr>
+          <tr>
+            <td>undirected cut</td>
+            <td>22</td>
+            <td>78</td>
+            <td>120.02</td>
+            <td>0.2335</td>
+            <td>1816.5</td>
+            <td>18.47</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>1. Overall solution time</h3>
+      <p>
+        The overall runtime comparison strongly favors <strong>directed cut</strong>. Its median runtime is about 4 seconds, while the medians for the other two formulations are around the full 120-second time limit. Pairwise, directed cut is faster than undirected cut on every instance and faster than undirected flow on 92 out of 100 instances. Undirected flow is the second-best formulation, but mainly on the easier instances.
+      </p>
+
+      <h3>2. Quality of LP at root node</h3>
+      <p>
+        The root-node LP relaxation is best for <strong>directed cut</strong>, with the smallest median root LP gap. Then comes <strong>undirected flow</strong>, and finally <strong>undirected cut</strong>. This is exactly the pattern one would expect if the directed cut formulation gives a tighter relaxation. A tighter root bound is consistent with the better solve times and the smaller branch-and-bound trees observed for directed cut.
+      </p>
+
+      <h3>3. Number of branch-and-bound nodes</h3>
+      <p>
+        Again, <strong>directed cut</strong> is clearly better. Its median branch-and-bound node count is only 48, compared with 770 for undirected flow and 1816.5 for undirected cut. This suggests that the stronger root relaxation of directed cut translates into a much smaller search tree.
+      </p>
+
+      <h3>4. Time spent for separation problems</h3>
+      <p>
+        Separation is relevant only for the cut formulations. The <strong>directed cut</strong> model spends far less time in separation than <strong>undirected cut</strong>, both in absolute terms and in practical impact on the solve. This is important because it shows that the better performance of directed cut is not achieved by paying an excessive callback price. The flow formulation does not use separation, so its separation time is zero.
+      </p>
+
+      <h3>5. Dependence on the instance</h3>
+      <p>
+        The outcomes depend strongly on instance size and structure. Runtime for directed cut has a strong positive correlation with the number of edges, density, and average degree. The number of terminals matters too, but less for runtime than edge count. For undirected flow and undirected cut, terminal-related measures appear more influential than for directed cut, especially for runtime and separation effort. In short, denser and larger instances are harder for all formulations, but directed cut degrades much more gracefully.
+      </p>
+
+      <div class="callout">
+        <strong>Conclusion.</strong> With the data currently available, the strongest answer is that <strong>directed cut is the best formulation among the three implemented ones</strong>: it has the lowest solution times, the strongest LP relaxation at the root node, the smallest branch-and-bound trees, and moderate separation overhead. The practical results are consistent with the theoretical expectation that stronger formulations should lead to better bounds and faster solves.
+      </div>
+    </section>
+
+    <section>
+      <h2>More</h2>
+
+      <div class="grid">
+        <div class="card">
+          <div class="big">100 / 100</div>
+          <p><strong>directed cut</strong> solved every instance at 120 seconds.</p>
+        </div>
+        <div class="card">
+          <div class="big">23</div>
+          <p>Instances that were unsolved at 30 seconds but solved by <strong>directed cut</strong> at 120 seconds.</p>
+        </div>
+        <div class="card">
+          <div class="big">0</div>
+          <p>Objective mismatches across jointly solved instances. This is a strong empirical signal that the implementations are consistent.</p>
+        </div>
+        <div class="card">
+          <div class="big">61</div>
+          <p>Instances solved only by <strong>directed cut</strong> in the 120-second run.</p>
+        </div>
+      </div>
+
+      <h3>What is still missing?</h3>
+      <ul>
+        <li>The exercise asks for four formulations, but the benchmark registry currently contains only three.</li>
+        <li>If the missing formulation is directed flow, it should be implemented and benchmarked before claiming a complete answer.</li>
+        <li>The comparison should ideally be rerun with the same Gurobi cut settings for every formulation, for example <code>--cuts 0</code> for all of them.</li>
+      </ul>
+
+      <h3>Unexpected-result caveat</h3>
+      <p>
+        The note in the exercise about turning off Gurobi cuts is relevant here. In the current code, the directed cut model explicitly sets <code>Cuts = 0</code> when no <code>--cuts</code> value is provided, but the other two models keep Gurobi's default cut behavior unless <code>--cuts</code> is set manually. Therefore, if you observe surprising differences, some of them may come from solver settings rather than formulation strength alone. A clean methodological follow-up would be to rerun all formulations with <code>--cuts 0</code>.
+      </p>
+
+      <h3>Why the 120-second run matters</h3>
+      <p>
+        The earlier 30-second run was enough to identify the best formulation, but not enough to separate hard-from-impossible instances. The 120-second run shows that all 23 formerly unsolved instances are in fact solvable by directed cut, while the other two formulations improve only slightly. That makes the dominance of directed cut much more convincing.
+      </p>
+
+      <h3>Plots</h3>
+      <div class="plot-grid">
+        <figure>
+          <img src="test_output/plots/runtime_boxplot.svg" alt="Runtime boxplot" />
+          <figcaption>Runtime by formulation. The gap between directed cut and the other two is immediate.</figcaption>
+        </figure>
+        <figure>
+          <img src="test_output/plots/root_gap_boxplot.svg" alt="Root LP gap boxplot" />
+          <figcaption>Root LP gap by formulation. Smaller is better, and directed cut is strongest.</figcaption>
+        </figure>
+        <figure>
+          <img src="test_output/plots/bb_nodes_boxplot.svg" alt="Branch-and-bound node boxplot" />
+          <figcaption>Branch-and-bound nodes by formulation. The search tree for directed cut is dramatically smaller.</figcaption>
+        </figure>
+        <figure>
+          <img src="test_output/plots/separation_share_boxplot.svg" alt="Separation share boxplot" />
+          <figcaption>Share of runtime spent in separation. Directed cut pays a moderate cost; undirected cut pays much more.</figcaption>
+        </figure>
+        <figure>
+          <img src="test_output/plots/runtime_vs_edges.svg" alt="Runtime versus edges" />
+          <figcaption>Runtime versus edge count. Hardness grows with graph size, especially for the weaker formulations.</figcaption>
+        </figure>
+        <figure>
+          <img src="test_output/plots/root_gap_vs_runtime.svg" alt="Root gap versus runtime" />
+          <figcaption>Root-gap quality and runtime move together: stronger root bounds tend to mean faster solves.</figcaption>
+        </figure>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

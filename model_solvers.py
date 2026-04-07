@@ -148,6 +148,79 @@ def DC_solve(
     DCmodel.optimize(callback)
     return _attach_stats(DCmodel, stats)
 
+
+def DF_solve(
+    nodes,
+    edges,
+    terminals,
+    edgeCosts,
+    timeLimit=30,
+    threads=1,
+    cuts=None,
+    seed=0,
+    output_flag=0,
+):
+
+    root = 0
+    arcs = edges + [ (v,u) for (u,v) in edges ]
+    stats = _new_stats()
+
+    DFmodel = Model("Directed Flow")
+    DFmodel.params.OutputFlag = output_flag
+    DFmodel.modelSense = GRB.MINIMIZE
+    DFmodel.params.timeLimit = timeLimit
+    if threads is not None:
+        DFmodel.params.Threads = threads
+    if cuts is not None:
+        DFmodel.params.Cuts = cuts
+    if seed is not None:
+        DFmodel.params.Seed = seed
+    
+
+    x = {}
+    for u,v in edges:
+        x[u,v] = DFmodel.addVar(name='x#'+str(u)+'#'+str(v), vtype=GRB.BINARY, obj=edgeCosts[u,v])
+
+    f = {}
+    for k in terminals:
+        if k != root:
+            for (u,v) in arcs:
+                f[k,u,v] = DFmodel.addVar(name='f#'+str(k)+'#'+str(u)+'#'+str(v), lb=0.0, ub=1.0)
+
+    # We now create the associated digraph variables
+    y={}
+    for u,v in arcs:
+      y[u,v]=DFmodel.addVar(name=f"y{u,v}",vtype=GRB.BINARY)
+    for u,v in edges:
+      DFmodel.addConstr(y[u,v]+y[v,u]<= x[u,v])
+
+    DFmodel.update()
+
+    for k in terminals:
+        if k != root:
+            for v in nodes:
+                if v == root:
+                     rhs = -1
+                elif v == k:
+                    rhs = 1
+                else:
+                    rhs = 0
+                DFmodel.addConstr( quicksum( f[k,s,t] for (s,t) in arcs if t == v ) - quicksum( f[k,s,t] for (s,t) in arcs if s == v ) == rhs )
+            for u,v in edges:
+                DFmodel.addConstr( f[k,u,v] <= y[u,v] )
+                DFmodel.addConstr( f[k,v,u] <= y[u,v] )
+
+    def callback(model, where):
+        if where == GRB.callback.MIPSOL:
+            stats["mipsol_calls"] += 1
+        elif where == GRB.callback.MIPNODE:
+            stats["mipnode_calls"] += 1
+            _record_root_lp_bound(model, stats)
+
+    DFmodel.optimize(callback)
+    return _attach_stats(DFmodel, stats)
+
+
 ##############################################################
 # UNDIRECTED CUT 
 ##############################################################
@@ -308,6 +381,11 @@ FORMULATION_REGISTRY = {
         "name": "directed cut",
         "solver": DC_solve,
         "uses_separation": True,
+    },
+    "df": {
+        "name": "directed flow",
+        "solver": DF_solve,
+        "uses_separation": False,
     },
 }
 

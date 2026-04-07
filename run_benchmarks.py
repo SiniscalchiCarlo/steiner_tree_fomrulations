@@ -87,8 +87,8 @@ def parse_args():
     parser.add_argument(
         "--formulations",
         type=str,
-        default="uc,uf,dc",
-        help="Comma-separated list from: uc, uf, dc",
+        default="uc,uf,dc,df",
+        help="Comma-separated list from: uc, uf, dc, df",
     )
     parser.add_argument(
         "--compute-static-lp-relaxation",

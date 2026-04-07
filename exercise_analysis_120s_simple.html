@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Steiner Benchmark Assignment Answer</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 32px 18px 48px;
+      font-family: Arial, sans-serif;
+      line-height: 1.5;
+      color: #1f1f1f;
+      background: #f7f7f7;
+    }
+    .page {
+      max-width: 980px;
+      margin: 0 auto;
+      background: #ffffff;
+      border: 1px solid #dddddd;
+      padding: 32px;
+    }
+    h1, h2, h3 {
+      margin-top: 0;
+      color: #1c4c7a;
+    }
+    h2 {
+      margin-top: 28px;
+      border-bottom: 1px solid #e3e3e3;
+      padding-bottom: 6px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 22px;
+      font-size: 0.96rem;
+    }
+    th, td {
+      border: 1px solid #d9d9d9;
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #f0f4f8;
+    }
+    .note {
+      background: #f8fbff;
+      border-left: 4px solid #1c4c7a;
+      padding: 12px 14px;
+      margin: 16px 0;
+    }
+    .warn {
+      background: #fff8f1;
+      border-left-color: #b8621b;
+    }
+    .plots {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+      margin-top: 16px;
+    }
+    figure {
+      margin: 0;
+      border: 1px solid #dddddd;
+      background: #fff;
+    }
+    figure img {
+      width: 100%;
+      display: block;
+    }
+    figcaption {
+      padding: 10px;
+      font-size: 0.92rem;
+      color: #555;
+    }
+    code {
+      background: #f2f2f2;
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+    ul {
+      padding-left: 22px;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Assignment Answer: Comparison of Steiner Formulations</h1>
+
+    <div class="note warn">
+      <strong>Important note.</strong> The exercise asks to compare four formulations, but in the current code and benchmark results only three formulations are implemented and tested: <code>undirected cut</code>, <code>undirected flow</code>, and <code>directed cut</code>. Therefore, the analysis below is complete only for these three formulations.
+    </div>
+
+    <p>
+      I used the benchmark run with 100 instances, 1 thread, and a time limit of 120 seconds. The main quantitative summary is:
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Formulation</th>
+          <th>Optimal runs</th>
+          <th>Time-limit runs</th>
+          <th>Median runtime (s)</th>
+          <th>Median root LP gap</th>
+          <th>Median B&amp;B nodes</th>
+          <th>Median separation time (s)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>directed cut</td>
+          <td>100</td>
+          <td>0</td>
+          <td>4.05</td>
+          <td>0.0938</td>
+          <td>48.0</td>
+          <td>0.725</td>
+        </tr>
+        <tr>
+          <td>undirected flow</td>
+          <td>39</td>
+          <td>61</td>
+          <td>120.10</td>
+          <td>0.1472</td>
+          <td>770.0</td>
+          <td>0</td>
+        </tr>
+        <tr>
+          <td>undirected cut</td>
+          <td>22</td>
+          <td>78</td>
+          <td>120.02</td>
+          <td>0.2335</td>
+          <td>1816.5</td>
+          <td>18.47</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>1. Overall Solution Time</h2>
+    <p>
+      The best formulation in terms of solution time is <strong>directed cut</strong>. It solved all 100 instances, with median runtime equal to about <strong>4.05 seconds</strong>. The other two formulations were much slower: both have median runtime around the full 120-second limit, because many instances were not solved within the time limit.
+    </p>
+    <p>
+      The pairwise comparison confirms this result. Directed cut is faster than undirected cut on <strong>100 out of 100</strong> instances and faster than undirected flow on <strong>92 out of 100</strong> instances. Therefore, directed cut is clearly the fastest formulation overall.
+    </p>
+
+    <h2>2. Quality of LP at Root Node</h2>
+    <p>
+      The quality of the LP relaxation at the root node can be evaluated through the root LP gap: smaller gap means stronger relaxation. The best formulation is again <strong>directed cut</strong>, with median root LP gap equal to <strong>0.0938</strong>. The second-best is <strong>undirected flow</strong> with <strong>0.1472</strong>, while <strong>undirected cut</strong> is the weakest with <strong>0.2335</strong>.
+    </p>
+    <p>
+      So the computational results are consistent with the idea that a stronger formulation gives a tighter root bound and better overall performance.
+    </p>
+
+    <h2>3. Number of Branch-and-Bound Nodes</h2>
+    <p>
+      The branch-and-bound tree is much smaller for <strong>directed cut</strong>. Its median number of nodes is only <strong>48</strong>, compared with <strong>770</strong> for undirected flow and <strong>1816.5</strong> for undirected cut.
+    </p>
+    <p>
+      This means that directed cut allows Gurobi to prune the search tree much more effectively. This is also coherent with the stronger LP relaxation observed at the root node.
+    </p>
+
+    <h2>4. Time Spent for Separation Problems</h2>
+    <p>
+      Separation is used only in the cut formulations. The <strong>directed cut</strong> formulation spends much less time in separation than <strong>undirected cut</strong>: median separation time is about <strong>0.725 seconds</strong> for directed cut and <strong>18.47 seconds</strong> for undirected cut.
+    </p>
+    <p>
+      Therefore, the callback and separation procedure do not appear to be a bottleneck for directed cut, while they are much more expensive for undirected cut. For undirected flow the separation time is zero because no separation callback is used.
+    </p>
+
+    <h2>5. Dependence on the Instance</h2>
+    <p>
+      The results depend strongly on instance characteristics. In particular, runtime increases when the number of edges, density, and average degree increase. For directed cut, the correlation between runtime and number of edges is about <strong>0.864</strong>, which is strong and positive.
+    </p>
+    <p>
+      The number of terminals also matters, especially for undirected flow and undirected cut. For example, for undirected flow the correlation between runtime and number of terminals is about <strong>0.646</strong>, while for undirected cut it is about <strong>0.482</strong>. This suggests that larger and denser instances are harder for all formulations, but directed cut still remains the most robust one.
+    </p>
+
+    <h2>Conclusion</h2>
+    <p>
+      Among the three available formulations, <strong>directed cut is clearly the best</strong>. It is the fastest, it has the best LP relaxation at the root node, it explores the smallest branch-and-bound tree, and it spends a moderate amount of time in separation. Undirected flow is generally better than undirected cut, but both are much weaker than directed cut on this benchmark set.
+    </p>
+
+    <h2>More</h2>
+    <p>
+      There are some additional points that are useful to mention.
+    </p>
+    <ul>
+      <li>The 120-second run is much more informative than the 30-second run. At 30 seconds, directed cut solved 77 instances; at 120 seconds it solved all 100. This shows that the previously unsolved instances were hard, but not impossible for directed cut.</li>
+      <li>I checked the objective values on all jointly solved instances, and there were no mismatches between formulations. This is a strong empirical indication that the implementations are correct and model the same problem.</li>
+      <li>The comparison is not perfectly symmetric, because in the current code directed cut uses <code>Cuts = 0</code> by default, while the other two formulations keep Gurobi's default cuts unless the parameter <code>--cuts</code> is set explicitly.</li>
+      <li>For a cleaner final comparison, it would be better to rerun all formulations with the same Gurobi cut setting, for example <code>--cuts 0</code>.</li>
+      <li>To fully answer the assignment exactly as written, the missing fourth formulation should also be implemented and benchmarked.</li>
+    </ul>
+
+    <div class="plots">
+      <figure>
+        <img src="test_output/plots/runtime_boxplot.svg" alt="Runtime boxplot" />
+        <figcaption>Runtime comparison.</figcaption>
+      </figure>
+      <figure>
+        <img src="test_output/plots/root_gap_boxplot.svg" alt="Root gap boxplot" />
+        <figcaption>Root LP gap comparison.</figcaption>
+      </figure>
+      <figure>
+        <img src="test_output/plots/bb_nodes_boxplot.svg" alt="B and B node boxplot" />
+        <figcaption>Branch-and-bound nodes comparison.</figcaption>
+      </figure>
+      <figure>
+        <img src="test_output/plots/runtime_vs_edges.svg" alt="Runtime versus edges" />
+        <figcaption>Dependence of runtime on graph size.</figcaption>
+      </figure>
+    </div>
+  </div>
+</body>
+</html>
