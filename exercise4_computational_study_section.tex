@@ -1,0 +1,333 @@
+\section{Computational Study}
+
+The comparison is based on the merged benchmark file
+\texttt{test\_output/raw/benchmarks\_20260407\_merged\_120s\_full.csv}.
+It contains all four formulations on the same 100 instances:
+\emph{undirected cut} (UC), \emph{undirected flow} (UF),
+\emph{directed cut} (DC), and \emph{directed flow} (DF).
+All runs used a time limit of 120 seconds, one thread, seed 0, and the same
+instance set. Therefore the comparison is fair instance-by-instance.
+
+The main result is very clear: \textbf{the directed cut formulation dominates the
+other three formulations on this benchmark set}. It solves all 100 instances to
+optimality, while the other formulations hit the time limit frequently.
+
+\subsection{Overall solution time}
+
+Table~\ref{tab:exercise4-summary} summarizes the main performance indicators.
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrrrrr}
+\toprule
+Form. & Opt. & TL & Med.\ time & Mean time & Med.\ gap & Med.\ B\&B & Med.\ sep. & Med.\ sep. \\
+& & & (s) & (s) & & nodes & time (s) & share \\
+\midrule
+DC & 100 & 0  & 4.045  & 14.203 & 0.094 & 48.0   & 0.725  & 0.242 \\
+DF & 39  & 61 & 120.085 & 79.416 & 0.146 & 776.5  & 0.000  & 0.000 \\
+UC & 22  & 78 & 120.016 & 99.506 & 0.233 & 1816.5 & 18.467 & 0.218 \\
+UF & 39  & 61 & 120.096 & 79.769 & 0.147 & 770.0  & 0.000  & 0.000 \\
+\bottomrule
+\end{tabular}
+\caption{Main benchmark summary on 100 instances.}
+\label{tab:exercise4-summary}
+\end{table}
+
+% Placeholder: add a runtime boxplot here if desired.
+% Example file from this project:
+% test_output/plots/runtime_boxplot.svg
+%
+% \begin{figure}[h!]
+% \centering
+% \includegraphics[width=0.8\textwidth]{<path-to-runtime-plot>}
+% \caption{Runtime distribution by formulation.}
+% \label{fig:runtime-boxplot}
+% \end{figure}
+
+The most important conclusions are:
+
+\begin{itemize}
+  \item DC is the only formulation that solves \textbf{all 100 instances}.
+  \item DC has by far the best median runtime: \SI{4.045}{s}. The other three
+  formulations all have median runtimes essentially equal to the time limit,
+  which means they time out on at least half of the instances.
+  \item In pairwise comparisons, DC beats DF on 94 instances, UF on 92 instances,
+  and UC on all 100 instances.
+  \item If we look at the fastest formulation per instance, DC wins
+  \textbf{92 out of 100} instances. DF wins 5, UF wins 3, and UC wins none.
+\end{itemize}
+
+So with respect to overall runtime, the ranking is:
+\[
+\text{DC} \gg \text{DF} \approx \text{UF} > \text{UC}.
+\]
+
+\subsection{Quality of LP at root node}
+
+The quality of the root relaxation is measured here by the root LP gap.
+Smaller is better, because it means the root bound is closer to the final
+optimal objective value.
+
+The median root LP gaps are:
+
+\begin{itemize}
+  \item DC: 0.0938
+  \item DF: 0.1459
+  \item UF: 0.1472
+  \item UC: 0.2335
+\end{itemize}
+
+This ranking matches the runtime ranking almost perfectly. DC has the strongest
+root relaxation, and UC has by far the weakest. This is important because a
+stronger root bound usually reduces the amount of branch-and-bound search that
+is needed later, and that is exactly what we observe in the benchmark.
+
+The two flow formulations are very close to each other in root-gap quality.
+Their median root gaps differ only slightly (0.1459 vs.\ 0.1472), which suggests
+that on this instance set the choice between directed and undirected flow is not
+mainly decided at the root node. In contrast, the cut formulations behave very
+differently: DC has the best root gap of all four models, while UC has the worst.
+
+The exercise note mentions that unexpected root-LP behavior can sometimes be
+affected by Gurobi cuts or callback behavior. In this study the results are not
+especially surprising: the formulation with the strongest root bound (DC) is
+also the formulation with the best overall performance.
+
+% Placeholder: add a root-gap boxplot here if desired.
+% Example file from this project:
+% test_output/plots/root_gap_boxplot.svg
+%
+% \begin{figure}[h!]
+% \centering
+% \includegraphics[width=0.8\textwidth]{<path-to-root-gap-plot>}
+% \caption{Root LP gap distribution by formulation.}
+% \label{fig:root-gap-boxplot}
+% \end{figure}
+
+\subsection{Number of branch-and-bound nodes}
+
+The median number of branch-and-bound nodes is:
+
+\begin{itemize}
+  \item DC: 48.0
+  \item DF: 776.5
+  \item UF: 770.0
+  \item UC: 1816.5
+\end{itemize}
+
+Again the pattern is very clear. DC needs a dramatically smaller search tree
+than the other models. The two flow formulations are very similar to each other,
+and UC requires the largest tree by a wide margin.
+
+This is consistent with the root-gap results:
+
+\begin{itemize}
+  \item better root relaxation $\Rightarrow$ fewer nodes,
+  \item weaker root relaxation $\Rightarrow$ larger tree.
+\end{itemize}
+
+The gap between DC and the others is especially striking. Compared with the
+median values of DF and UF, DC uses roughly one order of magnitude fewer nodes;
+compared with UC, the difference is even larger. Therefore the good performance
+of DC is not just due to a fast callback implementation: it is solving a much
+easier branch-and-bound problem.
+
+% Placeholder: add a B\&B-node boxplot here if desired.
+% Example file from this project:
+% test_output/plots/bb_nodes_boxplot.svg
+%
+% \begin{figure}[h!]
+% \centering
+% \includegraphics[width=0.8\textwidth]{<path-to-bb-nodes-plot>}
+% \caption{Branch-and-bound nodes by formulation.}
+% \label{fig:bb-nodes-boxplot}
+% \end{figure}
+
+\subsection{Time spent for separation problems}
+
+Separation time matters only for the cut formulations, because the flow
+formulations do not solve separation subproblems in callbacks.
+
+The median separation times are:
+
+\begin{itemize}
+  \item DC: \SI{0.725}{s}
+  \item UC: \SI{18.467}{s}
+  \item DF: \SI{0}{s}
+  \item UF: \SI{0}{s}
+\end{itemize}
+
+The median share of total runtime spent in separation is:
+
+\begin{itemize}
+  \item DC: 0.242
+  \item UC: 0.218
+  \item DF: 0
+  \item UF: 0
+\end{itemize}
+
+This leads to an interesting conclusion. UC spends much more absolute time in
+separation than DC, but the \emph{fraction} of total runtime spent in separation
+is not dramatically different between the two cut models. Therefore the weak
+performance of UC is not explained only by ``callbacks are expensive''.
+The more important problem is that UC has a much weaker root bound and a much
+larger branch-and-bound tree. In other words:
+
+\begin{quote}
+Separation is not the main reason why UC is bad; the formulation itself is weak.
+\end{quote}
+
+For DC, the situation is much better: it does spend nontrivial time in
+separation, but the cuts appear to be useful enough to keep the relaxation
+strong and the tree small. That trade-off is favorable.
+
+% Placeholder: add a separation-time plot here if desired.
+% Example files from this project:
+% test_output/plots/separation_share_boxplot.svg
+% test_output/plots/separation_vs_runtime.svg
+%
+% \begin{figure}[h!]
+% \centering
+% \includegraphics[width=0.8\textwidth]{<path-to-separation-plot>}
+% \caption{Separation effort for the cut formulations.}
+% \label{fig:separation-plot}
+% \end{figure}
+
+\subsection{Dependence of the outcomes on the instance}
+
+The instance features most strongly connected to performance are the number of
+edges, the density/average degree, and the number of terminals.
+
+\subsubsection*{Directed cut}
+
+For DC, runtime is strongly positively correlated with graph size:
+
+\begin{itemize}
+  \item corr($n\_edges$, runtime) = 0.864
+  \item corr(density, runtime) = 0.864
+  \item corr(avg.\ degree, runtime) = 0.864
+\end{itemize}
+
+So denser or larger graphs are clearly harder for DC. Interestingly, the root
+gap is negatively correlated with the number of terminals:
+
+\begin{itemize}
+  \item corr($n\_terminals$, root gap) = -0.769
+\end{itemize}
+
+This suggests that on this instance family, having more terminals does not make
+the DC root relaxation weaker; if anything, the relaxation becomes relatively
+tighter.
+
+\subsubsection*{Directed flow and undirected flow}
+
+For both flow formulations, the strongest runtime signal is the number of
+terminals:
+
+\begin{itemize}
+  \item DF: corr($n\_terminals$, runtime) = 0.647
+  \item UF: corr($n\_terminals$, runtime) = 0.646
+\end{itemize}
+
+This is intuitive, because both formulations create one commodity per non-root
+terminal, so more terminals directly increase model size.
+
+For both DF and UF, the root gap also becomes worse as the graph gets denser:
+
+\begin{itemize}
+  \item DF: corr($n\_edges$, root gap) = 0.647
+  \item UF: corr($n\_edges$, root gap) = 0.637
+\end{itemize}
+
+\subsubsection*{Undirected cut}
+
+For UC, the strongest correlation is between the number of terminals and the
+time spent in separation:
+
+\begin{itemize}
+  \item corr($n\_terminals$, separation time) = 0.885
+\end{itemize}
+
+This is a very strong effect. It indicates that instances with many terminals
+are especially difficult for UC, largely because they trigger much heavier
+separation work.
+
+UC also shows a positive correlation between graph size and root gap:
+
+\begin{itemize}
+  \item corr($n\_edges$, root gap) = 0.637
+\end{itemize}
+
+Therefore larger and denser instances tend to make the UC relaxation weaker.
+
+% Placeholder: add one instance-dependence scatter plot here if desired.
+% Good options from this project:
+% test_output/plots/runtime_vs_edges.svg
+% test_output/plots/runtime_vs_terminals.svg
+%
+% \begin{figure}[h!]
+% \centering
+% \includegraphics[width=0.8\textwidth]{<path-to-instance-plot>}
+% \caption{Dependence of performance on instance features.}
+% \label{fig:instance-dependence}
+% \end{figure}
+
+\subsection{More}
+
+\subsubsection*{Head-to-head versus global winner counts}
+
+At first sight, there is a small apparent contradiction:
+
+\begin{itemize}
+  \item UF beats DF in pairwise runtime on 65 instances,
+  \item but DF is the global winner on 5 instances while UF is the global winner on only 3.
+\end{itemize}
+
+This is not actually contradictory. The reason is that DC is faster than both of
+them on most instances. So UF can beat DF more often in a direct comparison,
+while still being the fastest \emph{overall} on fewer instances.
+
+\subsubsection*{Median runtime alone is not enough}
+
+Because there is a hard time limit of 120 seconds, median runtime by itself can
+be misleading for the weaker formulations. For DF, UF, and UC, the medians are
+all essentially the time limit. Therefore the number of optimal solves and the
+pairwise win counts are more informative than the median runtime alone.
+
+\subsubsection*{Practical recommendation}
+
+If the goal is to solve instances from this family efficiently, the best choice
+is clearly \textbf{directed cut}. It is the only formulation that is both:
+
+\begin{itemize}
+  \item consistently complete (100/100 optimal solves), and
+  \item consistently fast (median time about \SI{4}{s}).
+\end{itemize}
+
+The two flow formulations are acceptable second-best choices, but they are much
+less reliable under a 120-second limit. The undirected cut formulation is the
+weakest overall and should not be preferred for this instance family.
+
+% Placeholder: add any additional discussion specific to your final report here.
+% For example:
+% - comments on solver cuts being enabled/disabled
+% - comments on surprising instances
+% - comments on callback behavior
+
+\subsection*{Conclusion}
+
+Across all five requested aspects, the same message appears repeatedly:
+
+\begin{itemize}
+  \item DC has the best overall runtime,
+  \item DC has the strongest root LP,
+  \item DC uses the fewest branch-and-bound nodes,
+  \item DC keeps separation time under control while still benefiting from it,
+  \item and its performance scales more favorably with instance difficulty than
+  the other formulations.
+\end{itemize}
+
+Therefore the computational study strongly supports the directed cut
+formulation as the best of the four on this benchmark set.

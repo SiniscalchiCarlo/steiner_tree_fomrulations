@@ -1,18 +1,21 @@
-import networkx as nx # For graphs
-import matplotlib.pyplot as plt # For drawing
-import random # For random number generation
-import math # For square roots
+"""Generate and print one random Steiner instance in repository format."""
+
+import networkx as nx  # For graph construction and optional visualization
+import matplotlib.pyplot as plt  # For drawing the random graph
+import random  # For random coordinate and weight generation
+import math  # For Euclidean distance calculations
 show=False
 
-numNodes = 100  # Number of nodes of the graph
-numTerminals = 2 # Among them: number of terminals
-width,height = 100,40 # Range of the node coordinates
-edgeDistance = 40 # Nodes with at most this distance will be connected.
+numNodes = 100  # Total number of nodes in the random graph.
+numTerminals = 2  # The first `numTerminals` nodes are marked as terminals.
+width,height = 100,40  # Bounding box used to sample node coordinates.
+edgeDistance = 40  # Nodes at most this far apart are connected by an edge.
 
 nodes = list(range(numNodes))
 terminals = list(range(numTerminals))
 G = nx.Graph()
 for v in nodes:
+  # Positions are stored on the nodes so the optional drawing step can reuse them.
   isTerminal = v < numTerminals
   G.add_node(v, pos=(random.randint(1, width), random.randint(1, height)), terminal=isTerminal)
 
@@ -26,6 +29,7 @@ for u in nodes:
      distance = math.sqrt(dx*dx + dy*dy)
      if distance <= edgeDistance:
        edges.append((u,v))
+       # Costs scale with geometric distance and a small random multiplier.
        edgeCosts[(u,v)] = math.floor(random.randint(8,12) * distance)
        G.add_edge(u,v)
 
@@ -35,6 +39,7 @@ print('terminals =', terminals)
 print('edges =', edges)
 print('edgeCosts =', edgeCosts)
 if show==True:
+  # This block is only for manual visual inspection of the sampled graph.
   plt.figure(figsize=(width/5, height/5))
   pos = nx.get_node_attributes(G, 'pos')
   nx.draw(G, pos, edgelist=edges, node_size=400, node_shape='o', width=1, node_color='blue')

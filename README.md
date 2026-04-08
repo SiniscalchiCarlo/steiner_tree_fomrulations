@@ -1,58 +1,305 @@
-## Benchmark workflow
+# Steiner Tree Formulations
 
-This repository now contains a two-step computational study pipeline:
+This repository benchmarks four mixed-integer programming formulations for the
+Steiner tree problem and analyzes their performance on a collection of test
+instances.
 
-1. `run_benchmarks.py`
-   Runs every selected formulation on every selected instance and writes one raw CSV row per `(instance, formulation)`.
+The workflow has two steps:
 
-2. `analyze_benchmarks.py`
-   Reads a raw benchmark CSV, computes summary tables, and saves SVG plots plus an HTML report.
+1. [`run_benchmarks.py`](/home/carlo/Projects/UT/steiner_tree_fomrulations/run_benchmarks.py)
+   Solves the selected formulations on the selected instances and writes one raw
+   CSV row per `(instance, formulation)` pair.
+2. [`analyze_benchmarks.py`](/home/carlo/Projects/UT/steiner_tree_fomrulations/analyze_benchmarks.py)
+   Reads one raw benchmark CSV, computes summary tables, and generates SVG plots
+   plus an HTML report.
 
-### Configuration
+## Setup
 
-The scripts read these variables from `.env` when present:
+### 1. Create a virtual environment
+
+```bash
+uv venv
+```
+
+### 2. Activate it
+
+```bash
+source .venv/bin/activate
+```
+
+### 3. Install dependencies
+
+```bash
+uv sync
+```
+
+The dependencies are defined in [`pyproject.toml`](/home/carlo/Projects/UT/steiner_tree_fomrulations/pyproject.toml).
+
+### 4. Configure `.env` variables
+
+The scripts optionally read a `.env` file in the repository root. If `.env` is
+missing, the defaults are:
 
 ```bash
 INSTANCE_DIR=./test_istances
 TEST_OUTPUT_DIR=./test_output
 ```
 
+Example `.env`:
+
+```bash
+INSTANCE_DIR=./test_istances
+TEST_OUTPUT_DIR=./test_output
+```
+
+### 5. Make sure Gurobi is available
+
+The project uses `gurobipy`, so Gurobi must be installed and licensed on the
+machine. `uv sync` installs the Python package only; it does not provide a
+license.
+
+## How To Launch The Code
+
 ### Run benchmarks
 
-```bash
-python run_benchmarks.py --time-limit 30 --threads 1 --cuts 0 --compute-static-lp-relaxation
-```
-
-Useful options:
-
-- `--limit N` or `--first-n-instances N` to benchmark only the first `N` instances
-- `--formulations uc,uf,dc,df` to select formulations
-- `--continue-on-error` to keep going after a failed solve
-
-### Analyze results
+Smallest example:
 
 ```bash
-python analyze_benchmarks.py
+uv run python run_benchmarks.py
 ```
 
-By default this analyzes the latest CSV in `TEST_OUTPUT_DIR/raw`.
+Typical example:
 
-### Outputs
+```bash
+uv run python run_benchmarks.py --time-limit 30 --threads 1 --cuts 0 --formulations uc,uf,dc,df
+```
 
-The scripts create:
+Main parameters for [`run_benchmarks.py`](/home/carlo/Projects/UT/steiner_tree_fomrulations/run_benchmarks.py):
 
-- `TEST_OUTPUT_DIR/raw/benchmarks_<run_id>.csv`
-- `TEST_OUTPUT_DIR/raw/benchmarks_<run_id>.json`
-- `TEST_OUTPUT_DIR/tables/*.csv`
-- `TEST_OUTPUT_DIR/plots/*.svg`
-- `TEST_OUTPUT_DIR/reports/report_<run_id>.html`
+- `--instance-dir PATH`
+  Override `INSTANCE_DIR` and read instances from a different directory.
+- `--output-dir PATH`
+  Override `TEST_OUTPUT_DIR` and write all outputs to a different directory.
+- `--time-limit FLOAT`
+  Time limit in seconds for each `(instance, formulation)` solve.
+- `--threads INT`
+  Number of Gurobi threads.
+- `--cuts INT`
+  Value passed to the Gurobi `Cuts` parameter.
+- `--seed INT`
+  Random seed passed to Gurobi.
+- `--limit N`
+  Run only the first `N` instance files after sorting.
+- `--first-n-instances N`
+  Alias for `--limit`.
+- `--formulations uc,uf,dc,df`
+  Comma-separated list of formulations to run.
+  `uc` = undirected cut, `uf` = undirected flow, `dc` = directed cut, `df` = directed flow.
+- `--continue-on-error`
+  Record failures in the CSV and continue with the remaining jobs.
 
-### Measured quantities
+Examples:
 
-The runner records the metrics needed for Exercise 4:
+```bash
+# Only the first 10 instances
+uv run python run_benchmarks.py --limit 10
 
-- overall runtime
+# Only the cut formulations
+uv run python run_benchmarks.py --formulations uc,dc
+
+# Custom output directory and longer time limit
+uv run python run_benchmarks.py --output-dir ./results_120s --time-limit 120
+```
+
+### Run the analysis
+
+Analyze the latest raw CSV:
+
+```bash
+uv run python analyze_benchmarks.py
+```
+
+Analyze a specific raw CSV:
+
+```bash
+uv run python analyze_benchmarks.py --results ./test_output/raw/benchmarks_YYYYMMDD_HHMMSS.csv
+```
+
+Parameters for [`analyze_benchmarks.py`](/home/carlo/Projects/UT/steiner_tree_fomrulations/analyze_benchmarks.py):
+
+- `--results PATH`
+  Analyze one specific raw benchmark CSV. If omitted, the latest CSV in
+  `TEST_OUTPUT_DIR/raw` is used.
+- `--output-dir PATH`
+  Override `TEST_OUTPUT_DIR` for both input discovery and output generation.
+
+## Outputs
+
+The scripts create these artifacts inside `TEST_OUTPUT_DIR`:
+
+- `raw/benchmarks_<run_id>.csv`
+  One raw results row per `(instance, formulation)`.
+- `raw/benchmarks_<run_id>.json`
+  Run metadata such as selected formulations and solver parameters.
+- `tables/summary_<run_id>.csv`
+  One aggregate row per formulation.
+- `tables/pairwise_runtime_wins_<run_id>.csv`
+  Pairwise runtime comparisons between formulations.
+- `tables/instance_winners_<run_id>.csv`
+  Fastest optimal formulation for each instance.
+- `tables/feature_correlations_<run_id>.csv`
+  Correlations between instance features and benchmark metrics.
+- `plots/*.svg`
+  Boxplots and scatter plots generated by the analysis script.
+- `reports/report_<run_id>.html`
+  HTML report that embeds the generated plots.
+
+## What Each Script Does
+
+### [`run_benchmarks.py`](/home/carlo/Projects/UT/steiner_tree_fomrulations/run_benchmarks.py)
+
+This is the main experiment runner. It loads each instance, solves each selected
+formulation, and writes a flat CSV containing solver results and instance
+features.
+
+Main important parts:
+
+- `RESULT_FIELDS`
+  Defines the exact schema of the raw benchmark CSV.
+- `parse_args()`
+  Defines the CLI parameters used to configure a benchmark run.
+- `normalize_formulation_keys()`
+  Validates the short formulation keys from the CLI.
+- `benchmark_one()`
+  Runs one formulation on one instance and returns the collected metrics.
+- `main()`
+  Orchestrates the full benchmark workflow and writes results incrementally.
+
+### [`benchmark_utils.py`](/home/carlo/Projects/UT/steiner_tree_fomrulations/benchmark_utils.py)
+
+This module contains the file-system and data-loading helpers shared by the
+benchmark and analysis scripts.
+
+Main important parts:
+
+- `load_env_file()`
+  Reads simple `KEY=VALUE` pairs from `.env`.
+- `resolve_io_paths()`
+  Decides which input and output directories should be used.
+- `ensure_output_layout()`
+  Creates `raw`, `tables`, `plots`, and `reports`.
+- `load_instance()`
+  Imports one instance Python file and extracts `nodes`, `edges`, `terminals`,
+  and `edgeCosts`.
+- `compute_instance_features()`
+  Computes graph-level descriptors such as density and terminal ratio.
+- `safe_float()` / `safe_int()`
+  Convert CSV strings back to numeric values during analysis.
+
+### [`model_solvers.py`](/home/carlo/Projects/UT/steiner_tree_fomrulations/model_solvers.py)
+
+This module contains the actual optimization models and the shared metric
+collection logic.
+
+Main important parts:
+
+- `DC_solve()`
+  Directed cut formulation with lazy separation based on minimum cuts.
+- `DF_solve()`
+  Directed flow formulation with one flow commodity per non-root terminal.
+- `UC_solve()`
+  Undirected cut formulation with lazy separation.
+- `UF_solve()`
+  Undirected flow formulation with per-terminal flow constraints.
+- `FORMULATION_REGISTRY`
+  Maps the CLI keys `uc`, `uf`, `dc`, and `df` to solver functions and metadata.
+- `collect_model_metrics()`
+  Converts Gurobi outputs and callback statistics into one standard dictionary.
+
+Important conceptual part of this file:
+
+- The cut formulations start from a compact model and add connectivity
+  constraints lazily only when the current solution violates them.
+- The flow formulations encode connectivity directly in the model using flow
+  variables, so they do not need separation callbacks.
+- Root LP information and callback counts are attached to the solved Gurobi model
+  and later extracted by the benchmark runner.
+
+### [`analyze_benchmarks.py`](/home/carlo/Projects/UT/steiner_tree_fomrulations/analyze_benchmarks.py)
+
+This is the post-processing script. It reads the raw CSV, restores numeric data
+types, computes summary tables, builds plots as SVG files, and writes an HTML
+report.
+
+Main important parts:
+
+- `load_rows()`
+  Parses the raw CSV and restores numeric/boolean fields.
+- `formulation_summary()`
+  Aggregates runtime, root-gap, branch-and-bound, and separation statistics by
+  formulation.
+- `pairwise_runtime_wins()`
+  Compares formulations pairwise on each instance.
+- `instance_winners()`
+  Identifies the fastest optimal formulation for each instance.
+- `feature_correlations()`
+  Computes Pearson correlations between instance features and performance
+  metrics.
+- `make_boxplot_svg()` and `make_scatter_svg()`
+  Generate the visualizations directly as SVG files.
+- `build_html_report()`
+  Assembles the final HTML report.
+
+### [`steinerDataRandom.py`](/home/carlo/Projects/UT/steiner_tree_fomrulations/steinerDataRandom.py)
+
+This is a utility script for generating a random instance in the same format as
+the files in [`test_istances/`](/home/carlo/Projects/UT/steiner_tree_fomrulations/test_istances).
+It is not part of the main benchmark/analyze pipeline.
+
+Main important parts:
+
+- It samples 2D positions for nodes.
+- It adds an edge when two nodes are close enough.
+- It sets edge costs proportionally to distance.
+- It prints `nodes`, `terminals`, `edges`, and `edgeCosts` as Python literals.
+
+To run it:
+
+```bash
+uv run python steinerDataRandom.py
+```
+
+If `show = True` inside the script, it also draws the random graph with
+matplotlib.
+
+## Instance Files
+
+The files in [`test_istances/`](/home/carlo/Projects/UT/steiner_tree_fomrulations/test_istances) are data modules.
+Each one defines:
+
+- `nodes`
+  List of node ids.
+- `terminals`
+  List of required terminal nodes.
+- `edges`
+  List of undirected edges.
+- `edgeCosts`
+  Dictionary mapping each edge `(u, v)` to its cost.
+
+The benchmark runner imports these files directly, so this data layout must stay
+consistent.
+
+## Measured Quantities
+
+The raw benchmark CSV records:
+
+- solver status and number of solutions
+- objective value, best bound, and MIP gap
+- wall-clock runtime and solver runtime
 - root LP bound and root LP gap
-- branch-and-bound nodes
-- separation calls, cuts added, and separation time
-- instance features such as nodes, edges, terminals, density, and terminal ratio
+- branch-and-bound node count
+- simplex and barrier iterations
+- callback counters such as `mipnode_calls` and `mipsol_calls`
+- separation statistics such as cut count and separation time
+- instance features such as number of nodes, edges, terminals, density, average
+  degree, and terminal ratio

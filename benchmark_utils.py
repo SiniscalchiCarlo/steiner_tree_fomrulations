@@ -1,3 +1,5 @@
+"""Shared helpers for benchmark execution and post-processing."""
+
 import csv
 import importlib.util
 import json
@@ -10,6 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 
 def load_env_file(env_path):
+    """Load simple `KEY=VALUE` entries from a local `.env` file."""
     if not env_path.is_file():
         return
 
@@ -22,6 +25,7 @@ def load_env_file(env_path):
 
 
 def resolve_path_from_env(var_name, default_path, create=False):
+    """Resolve a path from an environment variable or a default value."""
     raw_value = os.getenv(var_name)
     path = Path(raw_value).expanduser() if raw_value else Path(default_path)
     if not path.is_absolute():
@@ -36,6 +40,7 @@ def resolve_path_from_env(var_name, default_path, create=False):
 
 
 def resolve_io_paths(instance_dir=None, output_dir=None):
+    """Resolve benchmark input/output directories from CLI, `.env`, or defaults."""
     load_env_file(BASE_DIR / ".env")
 
     resolved_instance_dir = (
@@ -59,6 +64,7 @@ def resolve_io_paths(instance_dir=None, output_dir=None):
 
 
 def ensure_output_layout(output_dir):
+    """Create the standard output subdirectories and return their paths."""
     raw_dir = output_dir / "raw"
     tables_dir = output_dir / "tables"
     plots_dir = output_dir / "plots"
@@ -75,10 +81,12 @@ def ensure_output_layout(output_dir):
 
 
 def make_run_id():
+    """Return a timestamp-based identifier for one benchmark run."""
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
 def load_instance(path):
+    """Import one instance module and extract the expected data objects."""
     spec = importlib.util.spec_from_file_location("instance", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -86,6 +94,7 @@ def load_instance(path):
 
 
 def list_instance_files(instance_dir, limit=None):
+    """Return sorted instance `.py` files, optionally truncated."""
     files = sorted(path for path in Path(instance_dir).iterdir() if path.suffix == ".py")
     if limit is not None:
         return files[:limit]
@@ -93,6 +102,7 @@ def list_instance_files(instance_dir, limit=None):
 
 
 def compute_instance_features(nodes, edges, terminals):
+    """Compute simple graph features recorded in the raw benchmark CSV."""
     node_count = len(nodes)
     edge_count = len(edges)
     terminal_count = len(terminals)
@@ -111,22 +121,26 @@ def compute_instance_features(nodes, edges, terminals):
 
 
 def safe_float(value):
+    """Convert optional CSV text to `float` while preserving empty values."""
     if value in ("", None):
         return None
     return float(value)
 
 
 def safe_int(value):
+    """Convert optional CSV text to `int` while preserving empty values."""
     if value in ("", None):
         return None
     return int(float(value))
 
 
 def write_json(path, payload):
+    """Write JSON with stable formatting for easy inspection and diffing."""
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
 def write_csv(path, rows, fieldnames):
+    """Write a list of dictionaries to CSV using a fixed column order."""
     with path.open("w", newline="") as handle:
         if not fieldnames:
             return
@@ -136,6 +150,7 @@ def write_csv(path, rows, fieldnames):
 
 
 def find_latest_results_csv(raw_dir):
+    """Return the newest benchmark CSV found in the raw output directory."""
     candidates = sorted(Path(raw_dir).glob("benchmarks_*.csv"))
     if not candidates:
         raise FileNotFoundError(f"No benchmark CSV files found in {raw_dir}")

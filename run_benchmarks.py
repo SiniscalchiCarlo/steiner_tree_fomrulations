@@ -1,3 +1,10 @@
+"""Run benchmark experiments for the Steiner tree formulations.
+
+This script is the entry point for the computational study. It iterates over
+instance files, solves each requested formulation on each instance, and writes
+one CSV row per `(instance, formulation)` pair.
+"""
+
 import argparse
 import csv
 import time
@@ -17,7 +24,6 @@ from model_solvers import (
     collect_model_metrics,
     get_formulation_registry,
     solve_formulation,
-    solve_lp_relaxation,
 )
 
 
@@ -36,9 +42,6 @@ RESULT_FIELDS = [
     "mip_gap",
     "runtime_sec",
     "model_runtime_sec",
-    "lp_relaxation_obj",
-    "lp_relaxation_status",
-    "lp_relaxation_time_sec",
     "root_lp_bound",
     "root_lp_gap",
     "root_lp_callback_calls",
@@ -69,6 +72,7 @@ RESULT_FIELDS = [
 
 
 def parse_args():
+    """Parse command-line options for the benchmark runner."""
     parser = argparse.ArgumentParser(description="Run Steiner formulation benchmarks.")
     parser.add_argument("--instance-dir", type=str, default=None)
     parser.add_argument("--output-dir", type=str, default=None)
@@ -91,11 +95,6 @@ def parse_args():
         help="Comma-separated list from: uc, uf, dc, df",
     )
     parser.add_argument(
-        "--compute-static-lp-relaxation",
-        action="store_true",
-        help="Also solve the plain LP relaxation of each formulation.",
-    )
-    parser.add_argument(
         "--continue-on-error",
         action="store_true",
         help="Record failures and continue with remaining runs.",
@@ -104,6 +103,7 @@ def parse_args():
 
 
 def normalize_formulation_keys(formulation_arg):
+    """Validate the comma-separated formulation keys given by the user."""
     requested = [part.strip() for part in formulation_arg.split(",") if part.strip()]
     registry = get_formulation_registry()
     invalid = [key for key in requested if key not in registry]
@@ -121,33 +121,9 @@ def benchmark_one(
     edge_costs,
     args,
 ):
-    lp_relaxation_obj = None
-    lp_relaxation_status = None
-    lp_relaxation_time_sec = None
-
-    if args.compute_static_lp_relaxation:
-        try:
-            lp_start = time.perf_counter()
-            lp_model = solve_lp_relaxation(
-                formulation_key,
-                nodes,
-                edges,
-                terminals,
-                edge_costs,
-                time_limit=args.time_limit,
-                threads=args.threads,
-                cuts=args.cuts,
-                seed=args.seed,
-            )
-            lp_relaxation_time_sec = time.perf_counter() - lp_start
-            lp_relaxation_status = lp_model.Status
-            if lp_model.SolCount > 0:
-                lp_relaxation_obj = lp_model.ObjVal
-        except NotImplementedError:
-            lp_relaxation_obj = None
-            lp_relaxation_status = None
-            lp_relaxation_time_sec = None
-
+    """Solve one formulation on one instance and return its benchmark metrics."""
+    # This timer captures the full cost of model construction, optimization,
+    # and any callback work executed inside the solver call.
     solve_start = time.perf_counter()
     model = solve_formulation(
         formulation_key,
@@ -163,9 +139,6 @@ def benchmark_one(
     runtime_sec = time.perf_counter() - solve_start
     metrics = collect_model_metrics(model)
     metrics["runtime_sec"] = runtime_sec
-    metrics["lp_relaxation_obj"] = lp_relaxation_obj
-    metrics["lp_relaxation_status"] = lp_relaxation_status
-    metrics["lp_relaxation_time_sec"] = lp_relaxation_time_sec
     metrics["separation_share"] = (
         metrics["separation_time_sec"] / runtime_sec if runtime_sec else None
     )
@@ -173,6 +146,7 @@ def benchmark_one(
 
 
 def main():
+    """Execute the full benchmark workflow and stream rows to the CSV output."""
     args = parse_args()
     formulation_keys = normalize_formulation_keys(args.formulations)
     instance_dir, output_dir = resolve_io_paths(args.instance_dir, args.output_dir)
@@ -195,7 +169,6 @@ def main():
         "cuts": args.cuts,
         "seed": args.seed,
         "formulations": formulation_keys,
-        "compute_static_lp_relaxation": args.compute_static_lp_relaxation,
         "instance_count": len(instance_files),
     }
     write_json(metadata_path, config_payload)
@@ -208,6 +181,8 @@ def main():
         writer.writeheader()
 
         for instance_path in instance_files:
+            # Each instance file is a Python module exposing `nodes`, `edges`,
+            # `terminals`, and `edgeCosts`.
             nodes, edges, terminals, edge_costs = load_instance(instance_path)
             instance_features = compute_instance_features(nodes, edges, terminals)
 
@@ -236,6 +211,8 @@ def main():
                 row.update(instance_features)
 
                 try:
+                    # `benchmark_one` returns a flat dictionary so it can be
+                    # merged directly into the CSV row schema.
                     metrics = benchmark_one(
                         formulation_key,
                         formulation_meta,
@@ -259,5 +236,7 @@ def main():
 
     print(f"Saved raw benchmark results to {results_path}")
     print(f"Saved benchmark metadata to {metadata_path}")
+
+
 if __name__ == "__main__":
     main()
