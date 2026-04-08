@@ -123,9 +123,10 @@ def DC_solve(
             obj=edgeCosts[u, v],
         )
 
-    # The directed support graph duplicates each undirected edge into two arcs.
-    # Linking constraints ensure the orientation variables cannot be active unless
-    # the underlying undirected edge is selected.
+    # We now create the associated digraph variables.
+    # The directed support graph duplicates each undirected edge into two arcs,
+    # and linking constraints ensure the orientation variables cannot be active
+    # unless the underlying undirected edge is selected.
     y = {}
     for u, v in arcs:
         y[u, v] = DCmodel.addVar(name=f"y{u, v}", vtype=GRB.BINARY)
@@ -133,10 +134,10 @@ def DC_solve(
         DCmodel.addConstr(y[u, v] + y[v, u] <= x[u, v])
 
     def callback(model, where):
-        # The same separation routine is used on both incumbents and fractional
-        # node relaxations. The only difference is where the current values come
-        # from (`cbGetSolution` versus `cbGetNodeRel`).
+        # This time we split x and y variables since the minimum root-k-cut
+        # value is computed according to the y-variables (arcs).
         if where == GRB.callback.MIPSOL:
+            # Case 1: called for every integer solution, so we check feasibility.
             stats["mipsol_calls"] += 1
             solution_x = {
                 edge: value
@@ -147,6 +148,7 @@ def DC_solve(
                 for arc, value in zip(y.keys(), DCmodel.cbGetSolution(list(y.values())))
             }
         elif where == GRB.callback.MIPNODE and DCmodel.cbGet(GRB.Callback.MIPNODE_STATUS) == GRB.OPTIMAL:
+            # Case 2: called for fractional solutions, so violated cuts can be added.
             stats["mipnode_calls"] += 1
             _record_root_lp_bound(DCmodel, stats)
             solution_x = {
@@ -161,24 +163,23 @@ def DC_solve(
             if where == GRB.callback.MIPNODE:
                 stats["mipnode_calls"] += 1
                 _record_root_lp_bound(DCmodel, stats)
+            # Otherwise, state that we do not currently have a usable solution.
             solution_x = None
             solution_y = None
 
         if solution_x is not None:
-            # NetworkX's minimum-cut routine works on a capacitated digraph, so
-            # we rebuild that graph from the current relaxation values.
+            # Case 1 or 2: rebuild the capacitated flow graph from the current
+            # solution so NetworkX can evaluate root-terminal cuts.
             digraph = nx.DiGraph()
             digraph.add_nodes_from(nodes)
             digraph.add_edges_from(arcs)
 
-            # Capacities are taken from the directed arc variables because the
-            # directed cut formulation reasons about root-to-terminal reachability.
+            # We set arc capacities according to the current y-values.
             for u, v in edges:
                 digraph.edges[u, v]["capacity"] = solution_y[u, v]
                 digraph.edges[v, u]["capacity"] = solution_y[v, u]
 
-            # Every non-root terminal must be reachable from the root through at
-            # least one unit of cut capacity.
+            # We now compute the minimum root-k-cut value for each non-root terminal.
             for k in terminals:
                 if k != root:
                     stats["separation_calls"] += 1
@@ -188,8 +189,8 @@ def DC_solve(
                     )
                     stats["separation_time_sec"] += time.perf_counter() - sep_start
                     if value < 1 - 1e-5:
-                        # The violated inequality requires at least one selected
-                        # arc to leave the root side of the cut.
+                        # If the cut value is clearly below 1, add a violated
+                        # Steiner cut using only arcs that leave the root side.
                         DCmodel.cbLazy(
                             quicksum(
                                 y[u, v]
@@ -253,6 +254,7 @@ def DF_solve(
                     ub=1.0,
                 )
 
+    # We now create the associated digraph variables.
     # `y` indicates which arc orientation is available for terminal flows.
     y = {}
     for u, v in arcs:
@@ -267,17 +269,19 @@ def DF_solve(
             # One conservation system is created for each non-root terminal.
             for v in nodes:
                 if v == root:
-                    rhs = -1
+                    rhs = -1  # only outgoing flow is selected on the root side
                 elif v == k:
-                    rhs = 1
+                    rhs = 1  # only incoming flow is selected for terminal k
                 else:
-                    rhs = 0
+                    rhs = 0  # flow conservation holds at every other node
                 DFmodel.addConstr(
                     quicksum(f[k, s, t] for (s, t) in arcs if t == v)
                     - quicksum(f[k, s, t] for (s, t) in arcs if s == v)
                     == rhs
                 )
             for u, v in edges:
+                # In this formulation the flow variables are associated with
+                # directed arcs rather than undirected edges.
                 DFmodel.addConstr(f[k, u, v] <= y[u, v])
                 DFmodel.addConstr(f[k, v, u] <= y[v, u])
 
@@ -335,9 +339,8 @@ def UC_solve(
         UCmodel.update()
 
     def callback(UCmodel, where):
-        # The cut formulation is completed lazily: violated root-terminal
-        # connectivity constraints are only added when they are needed.
         if where == GRB.callback.MIPSOL:
+            # Case 1: called for every integer solution, so we check feasibility.
             stats["mipsol_calls"] += 1
             solution = {
                 edge: value
@@ -347,6 +350,7 @@ def UC_solve(
                 )
             }
         elif where == GRB.callback.MIPNODE and UCmodel.cbGet(GRB.Callback.MIPNODE_STATUS) == GRB.OPTIMAL:
+            # Case 2: called for fractional solutions, so violated cuts can be added.
             stats["mipnode_calls"] += 1
             _record_root_lp_bound(UCmodel, stats)
             solution = {
@@ -360,15 +364,18 @@ def UC_solve(
             if where == GRB.callback.MIPNODE:
                 stats["mipnode_calls"] += 1
                 _record_root_lp_bound(UCmodel, stats)
+            # Otherwise, state that we do not currently have a usable solution.
             solution = None
 
         if solution is not None:
+            # Rebuild the capacitated graph from the current edge values.
             digraph = nx.DiGraph()
             digraph.add_nodes_from(nodes)
             digraph.add_edges_from(arcs)
             for u, v in edges:
                 digraph.edges[u, v]["capacity"] = solution[u, v]
                 digraph.edges[v, u]["capacity"] = solution[u, v]
+            # We now compute the minimum root-k-cut value for each non-root terminal.
             for k in terminals:
                 if k != root:
                     stats["separation_calls"] += 1
@@ -378,7 +385,8 @@ def UC_solve(
                     )
                     stats["separation_time_sec"] += time.perf_counter() - sep_start
                     if value < 0.99:
-                        # In the undirected model, either crossing direction
+                        # If the cut value is below 1, add a violated Steiner
+                        # cut. In the undirected model either crossing direction
                         # corresponds to selecting the same undirected edge.
                         UCmodel.cbLazy(
                             quicksum(
@@ -451,11 +459,11 @@ def UF_solve(
         if k != root:
             for v in nodes:
                 if v == root:
-                    rhs = -1
+                    rhs = -1  # only outgoing flow is selected on the root side
                 elif v == k:
-                    rhs = 1
+                    rhs = 1  # only incoming flow is selected for terminal k
                 else:
-                    rhs = 0
+                    rhs = 0  # flow conservation holds at every other node
                 UFmodel.addConstr(
                     quicksum(f[k, s, t] for (s, t) in arcs if t == v)
                     - quicksum(f[k, s, t] for (s, t) in arcs if s == v)
