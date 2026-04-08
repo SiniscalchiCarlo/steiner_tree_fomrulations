@@ -279,7 +279,7 @@ def DF_solve(
                 )
             for u, v in edges:
                 DFmodel.addConstr(f[k, u, v] <= y[u, v])
-                DFmodel.addConstr(f[k, v, u] <= y[u, v])
+                DFmodel.addConstr(f[k, v, u] <= y[v, u])
 
     def callback(model, where):
         if where == GRB.callback.MIPSOL:
